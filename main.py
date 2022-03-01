@@ -86,7 +86,7 @@ def store_message(client, userdata, message):
         last_ts = pd.to_datetime(documents[-1]['_time'], unit="s")
         last_time = last_ts if last_time is None or last_ts > last_time else last_time
         save_to_hbase(documents, h_table_name, config['hbase'], [("info", "all")], row_fields=v["row_fields"])
-    client.publish("last_time", last_time.isoformat(), qos=0, retain=True)
+    client.publish("last_time", last_time.isoformat(), qos=1, retain=True)
     print("parsed_message")
 
 
@@ -120,8 +120,4 @@ if __name__ == "__main__":
             WAIT = WAIT - 1 if WAIT > 0 else 0
             time.sleep(0.4)
         cli.unsubscribe("last_time")
-        today = datetime.combine(datetime.utcnow().date(), datetime.min.time())
-        date_end = min(DATE_START + relativedelta(months=1), today)
-        while DATE_START < date_end:
-            cli.publish("make_backup", DATE_START.isoformat(), qos=1)
-            DATE_START += relativedelta(days=1)
+        cli.publish("make_backup", DATE_START.isoformat(), qos=1)

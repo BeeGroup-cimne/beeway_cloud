@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: beeway
+  name:	cloud
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+        labels:
+            app: cloud
+    spec:
+      hostAliases:
+        - ip: "10.0.88.76"
+          hostnames:
+            - "master1.internal"
+        - ip: "10.0.87.95"
+          hostnames:
+            - "master2.internal"
+        - ip: "10.0.88.132"
+          hostnames:
+            - "worker1.internal"
+        - ip: "10.0.86.33"
+          hostnames:
+            - "worker2.internal"
+        - ip: "10.0.87.145"
+          hostnames:
+            - "worker3.internal"
+        - ip: "10.0.86.214"
+          hostnames:
+            - "worker4.internal"
+        - ip: "10.0.129.220"
+          hostnames:
+            - "kafka1.internal"
+      containers:
+        - name: cloud
+          image: docker.tech.beegroup-cimne.com/beegroup/beeway_cloud:latest
+          command: ["python3", "main.py", "-t", "sub"]
+          volumeMounts:
+          - name: beeway
+            mountPath: /beeway_cloud/config.json
+            subPath: config.json
+      volumes:
+      - name: beeway
+        secret:
+          secretName: beeway
+          items:
+          - key: config.json
+            path: config.json
+      imagePullSecrets:
+      - name: registrypullsecret
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  namespace: beeway
+  name: backup-notifier
+spec:
+  suspend: true
+  schedule: "0 0 * * *"
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 0
+  startingDeadlineSeconds: 180
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 432000
+      template:
+        spec:
+          hostAliases:
+          - ip: "10.0.88.76"
+            hostnames:
+            - "master1.internal"
+          - ip: "10.0.87.95"
+            hostnames:
+              - "master2.internal"
+          - ip: "10.0.88.132"
+            hostnames:
+              - "worker1.internal"
+          - ip: "10.0.86.33"
+            hostnames:
+              - "worker2.internal"
+          - ip: "10.0.87.145"
+            hostnames:
+              - "worker3.internal"
+          - ip: "10.0.86.214"
+            hostnames:
+              - "worker4.internal"
+          - ip: "10.0.129.220"
+            hostnames:
+              - "kafka1.internal"
+          containers:
+          - name: backup-notifier
+            image: docker.tech.beegroup-cimne.com/beegroup/beeway_cloud:latest
+            command: [ "python3", "main.py", "-t", "prod" ]
+            volumeMounts:
+            - name: beeway
+              mountPath: /beeway_cloud/config.json
+              subPath: config.json
+          volumes:
+          - name: beeway
+            secret:
+              secretName: beeway
+              items:
+              - key: config.json
+                path: config.json
+          restartPolicy: OnFailure
+          imagePullSecrets:
+          - name: registrypullsecret
