@@ -30,9 +30,12 @@ def parse_sala(df):
         return []
     df1 = df.groupby("_measurement")
     df1 = df1.get_group("Montcada")
+    if "Sala" not in df1.columns:
+        return[]
     df1 = df1[pd.isnull(df1.Sala)==False]
     df1['_time'] = pd.to_datetime(df1['_time']).astype("int") // 10**9
-    return df1.drop(["result", "table", "_start", "_stop", "Circutor", "_measurement"], axis=1).to_dict(orient="records")
+    return df1.drop([x for x in ["result", "table", "_start", "_stop", "Circutor", "_measurement"] if x in df1.columns],
+                    axis=1).to_dict(orient="records")
 
 
 def parse_circutor(df):
@@ -40,9 +43,12 @@ def parse_circutor(df):
         return []
     df1 = df.groupby("_measurement")
     df1 = df1.get_group("Montcada")
+    if "Circutor" not in df1.columns:
+        return[]
     df1 = df1[pd.isnull(df1.Circutor) == False]
     df1['_time'] = pd.to_datetime(df1['_time']).astype("int") // 10 ** 9
-    return df1.drop(["result", "table", "_start", "_stop", "Sala", "_measurement"], axis=1).to_dict(orient="records")
+    return df1.drop([x for x in ["result", "table", "_start", "_stop", "Sala", "_measurement"] if x in df1.columns],
+                    axis=1).to_dict(orient="records")
 
 
 def parse_shelly(df):
@@ -55,7 +61,9 @@ def parse_shelly(df):
     df1["_field"] = df1['_measurement'].apply(lambda x: x.split("_")[1][0])
     df1["shelly"] = df1['_measurement'].apply(lambda x: x.split("_")[1][1:])
     df1['_time'] = pd.to_datetime(df1['_time']).astype("int") // 10 ** 9
-    return df1.drop(["result", "table", "_start", "_stop", "Sala", "Circutor", "_measurement"], axis=1).to_dict(orient="records")
+    return df1.drop([x for x in
+                     ["result", "table", "_start", "_stop", "Sala", "Circutor", "_measurement"] if x in df1.columns],
+                    axis=1).to_dict(orient="records")
 
 
 data_types = {
@@ -98,7 +106,8 @@ def get_last_date(client, userdata, message):
 
 
 WAIT = 5
-DATE_START = datetime(2021, 10, 16)
+#DATE_START = datetime(2021, 10, 16)
+DATE_START = datetime(2022, 3, 1, 15)
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
