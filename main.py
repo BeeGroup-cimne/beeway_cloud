@@ -106,8 +106,8 @@ def get_last_date(client, userdata, message):
 
 
 WAIT = 5
-#DATE_START = datetime(2021, 10, 16)
-DATE_START = datetime(2022, 3, 1, 15)
+DATE_START = datetime(2021, 10, 16)
+#DATE_START = datetime(2022, 3, 1, 15)
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
