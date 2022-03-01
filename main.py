@@ -115,7 +115,8 @@ if __name__ == "__main__":
     args = ap.parse_args()
     config = read_config("config.json")
     if args.type == "sub":
-        cli = connect_mqtt("backup_server", config['mqtt'])
+        print("starting as consumer")
+        cli = connect_mqtt(f"backup_server_{uuid.uuid4()}", config['mqtt'])
         cli.subscribe("backup_data")
         cli.on_message = store_message
         cli.loop_forever()
