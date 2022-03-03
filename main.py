@@ -66,18 +66,47 @@ def parse_shelly(df):
                     axis=1).to_dict(orient="records")
 
 
+def parse_smart(df):
+    if "SensorData" not in df["_measurement"].unique():
+        return []
+    df1 = df.groupby("_measurement")
+    df1 = df1.get_group("SensorData")
+    if "sensor" not in df1.columns:
+        return[]
+    df1 = df1[pd.isnull(df1.sensor)==False]
+    df1['_time'] = pd.to_datetime(df1['_time']).astype("int") // 10**9
+    return df1.drop([x for x in ["result", "table", "_start", "_stop", "_measurement"] if x in df1.columns],
+                    axis=1).to_dict(orient="records")
+
+
 data_types = {
-    "montcada_sala_beegroup": {
-        "parser": parse_sala,
-        "row_fields": ["_time", "Sala", "_field"]
+    "montcada": {
+        "data": {
+            "montcada_sala_beegroup": {
+                "parser": parse_sala,
+                "row_fields": ["_time", "Sala", "_field"]
+            },
+            "montcada_circutor_beegroup": {
+                "parser": parse_circutor,
+                "row_fields": ["_time", "Circutor", "_field"]
+            },
+            "montcada_shelly_beegroup": {
+                "parser": parse_shelly,
+                "row_fields": ["_time", "shelly", "_field"]
+            }
+        },
+        "start_date": datetime(2021, 10, 16),
+        "topic": "last_time_montcada"
     },
-    "montcada_circutor_beegroup": {
-        "parser": parse_circutor,
-        "row_fields": ["_time", "Circutor", "_field"]
-    },
-    "montcada_shelly_beegroup": {
-        "parser": parse_shelly,
-        "row_fields": ["_time", "shelly", "_field"]
+    "smart": {
+        "data": {
+            "smartdatasystems_beegroup": {
+                "parser": parse_smart,
+                "row_fields": ["_time", "sensor"]
+            }
+        },
+        "start_date": datetime(2019, 7, 31),
+        "topic": "last_time_smart"
     }
 }
 
@@ -87,27 +116,23 @@ def store_message(client, userdata, message):
     m = eval(message.payload.decode())
     df = pd.DataFrame.from_records(m)
     last_time = None
-    for h_table_name, v in data_types.items():
+    for h_table_name, v in data_types[message.topic]['data'].items():
         documents = v['parser'](df)
         if not documents:
             continue
         last_ts = pd.to_datetime(documents[-1]['_time'], unit="s")
         last_time = last_ts if last_time is None or last_ts > last_time else last_time
         save_to_hbase(documents, h_table_name, config['hbase'], [("info", "all")], row_fields=v["row_fields"])
-    client.publish("last_time", last_time.isoformat(), qos=1, retain=True)
+    client.publish(data_types[message.topic]['topic'], last_time.isoformat(), qos=1, retain=True)
     print("parsed_message")
 
 
 def get_last_date(client, userdata, message):
-    global WAIT
     global DATE_START
-    WAIT = 0
     DATE_START = datetime.fromisoformat(message.payload.decode())
 
-
+DATE_START = None
 WAIT = 5
-DATE_START = datetime(2021, 10, 16)
-#DATE_START = datetime(2022, 3, 1, 15)
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
@@ -117,17 +142,33 @@ if __name__ == "__main__":
     if args.type == "sub":
         print("starting as consumer")
         cli = connect_mqtt(f"backup_server_{uuid.uuid4()}", config['mqtt'])
-        cli.subscribe("backup_data")
+        cli.subscribe("backup_data_data")
+        cli.subscribe("backup_smart")
         cli.on_message = store_message
         cli.loop_forever()
     elif args.type == "prod":
         print("starting")
-        cli = connect_mqtt("backup_data_2", config['mqtt'])
-        cli.subscribe("last_time")
-        cli.on_message = get_last_date
-        while WAIT:
-            cli.loop()
-            WAIT = WAIT - 1 if WAIT > 0 else 0
+        cli_mont = connect_mqtt(f"backup_data_{uuid.uuid4()}", config['mqtt'])
+        cli_smart = connect_mqtt(f"backup_data_{uuid.uuid4()}", config['mqtt'])
+        cli_mont.subscribe("last_time_montcada")
+        cli_smart.subscribe("last_time_smart")
+        cli_mont.on_message = get_last_date
+        cli_smart.on_message = get_last_date
+        wait = WAIT
+        while wait:
+            cli_mont.loop()
+            wait = wait - 1 if wait > 0 else 0
             time.sleep(0.4)
-        cli.unsubscribe("last_time")
-        cli.publish("make_backup", DATE_START.isoformat(), qos=1)
+        cli_mont.unsubscribe("last_time_montcada")
+        date_start_montcada = DATE_START if DATE_START else data_types['montcada']['start_date']
+        DATE_START = None
+        wait = WAIT
+        while wait:
+            cli_smart.loop()
+            wait = wait - 1 if wait > 0 else 0
+            time.sleep(0.4)
+        cli_smart.unsubscribe("last_time_smart")
+        date_start_smart = DATE_START if DATE_START else data_types['smart']['start_date']
+
+        cli_mont.publish("make_backup_montcada", date_start_montcada.isoformat(), qos=1)
+        cli_smart.publish("make_backup_smart", date_start_smart.isoformat(), qos=1)
