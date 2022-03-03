@@ -131,6 +131,7 @@ def get_last_date(client, userdata, message):
     global DATE_START
     DATE_START = datetime.fromisoformat(message.payload.decode())
 
+
 DATE_START = None
 WAIT = 5
 
@@ -142,8 +143,8 @@ if __name__ == "__main__":
     if args.type == "sub":
         print("starting as consumer")
         cli = connect_mqtt(f"backup_server_{uuid.uuid4()}", config['mqtt'])
-        cli.subscribe("backup_data_data")
-        cli.subscribe("backup_smart")
+        cli.subscribe("montcada")
+        cli.subscribe("smart")
         cli.on_message = store_message
         cli.loop_forever()
     elif args.type == "prod":
